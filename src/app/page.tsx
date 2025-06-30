@@ -36,8 +36,10 @@ export default function HomePage() {
       const data = await response.json();
 
       if (data.success) {
-        localStorage.setItem('currentUser', JSON.stringify(data.data.user));
-        localStorage.setItem('authToken', data.data.token);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('currentUser', JSON.stringify(data.data.user));
+          localStorage.setItem('authToken', data.data.token);
+        }
         window.location.href = '/dashboard';
       } else {
         toast.error(data.error || 'Login failed');
@@ -74,9 +76,11 @@ export default function HomePage() {
       const data = await response.json();
 
       if (data.success) {
-        localStorage.setItem('currentUser', JSON.stringify(data.data.user));
-        localStorage.setItem('authToken', data.data.token);
-        localStorage.setItem('isNewUser', 'true'); // Flag for goals modal
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('currentUser', JSON.stringify(data.data.user));
+          localStorage.setItem('authToken', data.data.token);
+          localStorage.setItem('isNewUser', 'true'); // Flag for goals modal
+        }
         window.location.href = '/dashboard';
       } else {
         toast.error(data.error || 'Registration failed');

@@ -47,8 +47,8 @@ export default function ProgressPage() {
   });
 
   useEffect(() => {
-    const currentUser = localStorage.getItem('currentUser');
-    const authToken = localStorage.getItem('authToken');
+    const currentUser = typeof window !== 'undefined' ? localStorage.getItem('currentUser') : null;
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     
     if (!currentUser || !authToken) {
       router.push('/');
@@ -112,12 +112,14 @@ export default function ProgressPage() {
         }
       }
 
-      // Fallback to localStorage if no data in MongoDB
-      if (stepsData.length === 0) {
-        stepsData = JSON.parse(localStorage.getItem(`steps_${user?.id}`) || '[]');
+      // Fallback to localStorage if no data in MongoDB (only if window is available)
+      if (stepsData.length === 0 && typeof window !== 'undefined') {
+        const storedSteps = localStorage.getItem(`steps_${user?.id}`);
+        stepsData = storedSteps ? JSON.parse(storedSteps) : [];
       }
-      if (workoutsData.length === 0) {
-        workoutsData = JSON.parse(localStorage.getItem(`workouts_${user?.id}`) || '[]');
+      if (workoutsData.length === 0 && typeof window !== 'undefined') {
+        const storedWorkouts = localStorage.getItem(`workouts_${user?.id}`);
+        workoutsData = storedWorkouts ? JSON.parse(storedWorkouts) : [];
       }
 
       // Debug: Log the data to see what we're working with

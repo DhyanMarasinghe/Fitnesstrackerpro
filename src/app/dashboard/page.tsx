@@ -117,8 +117,8 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    const currentUser = localStorage.getItem('currentUser');
-    const authToken = localStorage.getItem('authToken');
+    const currentUser = typeof window !== 'undefined' ? localStorage.getItem('currentUser') : null;
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     
     if (!currentUser || !authToken) {
       router.push('/');
@@ -331,7 +331,7 @@ export default function DashboardPage() {
   const handleSaveNewUserGoals = async () => {
     if (!user) return;
     
-    const authToken = localStorage.getItem('authToken');
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     if (!authToken) {
       toast.error('Authentication required');
       return;
@@ -370,7 +370,7 @@ export default function DashboardPage() {
   const handleSaveGoals = async () => {
     if (!user) return;
     
-    const authToken = localStorage.getItem('authToken');
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     if (!authToken) {
       toast.error('Authentication required');
       return;
@@ -411,7 +411,7 @@ export default function DashboardPage() {
       return;
     }
 
-    const authToken = localStorage.getItem('authToken');
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     if (!authToken) {
       toast.error('Authentication required');
       return;
@@ -453,7 +453,7 @@ export default function DashboardPage() {
       return;
     }
 
-    const authToken = localStorage.getItem('authToken');
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     if (!authToken) {
       toast.error('Authentication required');
       return;
@@ -503,7 +503,7 @@ export default function DashboardPage() {
       return;
     }
 
-    const authToken = localStorage.getItem('authToken');
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
     if (!authToken) {
       toast.error('Authentication required');
       return;
@@ -532,7 +532,9 @@ export default function DashboardPage() {
           name: result.data.name,
           profile: result.data.profile
         };
-        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+        }
         setUser(updatedUser);
         setProfileEditMode(false);
         toast.success('Profile updated successfully!');
@@ -546,8 +548,10 @@ export default function DashboardPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('currentUser');
-    localStorage.removeItem('authToken');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('authToken');
+    }
     router.push('/');
   };
 
