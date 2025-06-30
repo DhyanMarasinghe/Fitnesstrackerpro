@@ -24,7 +24,9 @@ import {
   Save,
   Target,
   CalendarDays,
-  Edit
+  Edit,
+  MessageCircle,
+  Send
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { User, StepsEntry, Workout } from '@/lib/types';
@@ -75,6 +77,7 @@ export default function DashboardPage() {
   const [profileEditMode, setProfileEditMode] = useState(false);
   const [goalsModalOpen, setGoalsModalOpen] = useState(false);
   const [newUserGoalsModalOpen, setNewUserGoalsModalOpen] = useState(false);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
 
   // Form states
   const [stepsForm, setStepsForm] = useState({
@@ -102,6 +105,13 @@ export default function DashboardPage() {
     steps: 10000,
     calories: 500,
     workouts: 1
+  });
+
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: ''
   });
 
   // Get date range (today and 14 days before)
@@ -555,6 +565,26 @@ export default function DashboardPage() {
     router.push('/');
   };
 
+  const handleContactSubmit = () => {
+    if (!contactForm.name || !contactForm.email || !contactForm.subject || !contactForm.message) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+
+    // Simulate form submission with delay to ensure modal closes first
+    setTimeout(() => {
+      toast.success('Submitted! Your message has been sent successfully.');
+    }, 100);
+    
+    setContactForm({
+      name: '',
+      email: '',
+      subject: '',
+      message: ''
+    });
+    setContactModalOpen(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -787,6 +817,84 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )}
+                </DialogContent>
+              </Dialog>
+
+              {/* Contact Us Modal */}
+              <Dialog open={contactModalOpen} onOpenChange={setContactModalOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-gray-600 hover:text-blue-600">
+                    <MessageCircle className="w-4 h-4 mr-2" />
+                    Contact Us
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center">
+                      <MessageCircle className="w-5 h-5 mr-2 text-blue-600" />
+                      Contact Support
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-600">
+                      We'd love to hear from you! Send us a message and we'll respond as soon as possible.
+                    </p>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Name *</Label>
+                        <Input
+                          value={contactForm.name}
+                          onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
+                          placeholder="Your full name"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Email *</Label>
+                        <Input
+                          type="email"
+                          value={contactForm.email}
+                          onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                          placeholder="your@email.com"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Subject *</Label>
+                        <Input
+                          value={contactForm.subject}
+                          onChange={(e) => setContactForm({ ...contactForm, subject: e.target.value })}
+                          placeholder="What can we help you with?"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label>Message *</Label>
+                        <textarea
+                          className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                          value={contactForm.message}
+                          onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
+                          placeholder="Tell us more about your question or feedback..."
+                          rows={4}
+                        />
+                      </div>
+                      
+                      <div className="flex space-x-2">
+                        <Button onClick={handleContactSubmit} className="flex-1 bg-blue-600 hover:bg-blue-700">
+                          <Send className="w-4 h-4 mr-2" />
+                          Send Message
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          onClick={() => setContactModalOpen(false)}
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </DialogContent>
               </Dialog>
 
