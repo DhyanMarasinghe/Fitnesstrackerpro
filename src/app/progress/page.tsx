@@ -36,6 +36,7 @@ export default function ProgressPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [chartsLoaded, setChartsLoaded] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editData, setEditData] = useState<{
     type: 'steps' | 'workouts' | 'calories';
@@ -98,6 +99,18 @@ export default function ProgressPage() {
       isMounted = false;
     };
   }, [router]);
+
+  // Separate useEffect for client-side chart loading
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Delay chart rendering to ensure client-side hydration
+      const timer = setTimeout(() => {
+        setChartsLoaded(true);
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Helper function to normalize dates
   const normalizeDate = (date: any): string => {
@@ -782,43 +795,52 @@ export default function ProgressPage() {
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <div 
-                  className="cursor-pointer border-2 border-dashed border-transparent hover:border-blue-300 rounded p-2"
-                  onClick={() => handleSimpleChartClick('steps')}
-                  title="Click to edit steps data"
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart 
-                      data={chartData}
-                      onClick={(data) => handleChartClick(data, 'steps')}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={formatDate}
-                        fontSize={12}
-                      />
-                      <YAxis fontSize={12} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Line 
-                        type="monotone" 
-                        dataKey="steps" 
-                        stroke="#2563eb" 
-                        strokeWidth={2}
-                        dot={{ 
-                          fill: '#2563eb', 
-                          strokeWidth: 2, 
-                          r: 4, 
-                          cursor: 'pointer'
-                        }}
-                        activeDot={{ 
-                          r: 6, 
-                          cursor: 'pointer'
-                        }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                {!chartsLoaded ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <Activity className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">Loading chart...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    className="cursor-pointer border-2 border-dashed border-transparent hover:border-blue-300 rounded p-2"
+                    onClick={() => handleSimpleChartClick('steps')}
+                    title="Click to edit steps data"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart 
+                        data={chartData}
+                        onClick={(data) => handleChartClick(data, 'steps')}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={formatDate}
+                          fontSize={12}
+                        />
+                        <YAxis fontSize={12} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Line 
+                          type="monotone" 
+                          dataKey="steps" 
+                          stroke="#2563eb" 
+                          strokeWidth={2}
+                          dot={{ 
+                            fill: '#2563eb', 
+                            strokeWidth: 2, 
+                            r: 4, 
+                            cursor: 'pointer'
+                          }}
+                          activeDot={{ 
+                            r: 6, 
+                            cursor: 'pointer'
+                          }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -831,33 +853,42 @@ export default function ProgressPage() {
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <div 
-                  className="cursor-pointer border-2 border-dashed border-transparent hover:border-orange-300 rounded p-2"
-                  onClick={() => handleSimpleChartClick('calories')}
-                  title="Click to edit calories data"
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart 
-                      data={chartData}
-                      onClick={(data) => handleChartClick(data, 'calories')}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis 
-                        dataKey="date" 
-                        tickFormatter={formatDate}
-                        fontSize={12}
-                      />
-                      <YAxis fontSize={12} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar 
-                        dataKey="calories" 
-                        fill="#ea580c"
-                        radius={[4, 4, 0, 0]}
-                        cursor="pointer"
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                {!chartsLoaded ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <Flame className="w-8 h-8 text-orange-600 animate-spin mx-auto mb-2" />
+                      <p className="text-sm text-gray-600">Loading chart...</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div 
+                    className="cursor-pointer border-2 border-dashed border-transparent hover:border-orange-300 rounded p-2"
+                    onClick={() => handleSimpleChartClick('calories')}
+                    title="Click to edit calories data"
+                  >
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart 
+                        data={chartData}
+                        onClick={(data) => handleChartClick(data, 'calories')}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={formatDate}
+                          fontSize={12}
+                        />
+                        <YAxis fontSize={12} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Bar 
+                          dataKey="calories" 
+                          fill="#ea580c"
+                          radius={[4, 4, 0, 0]}
+                          cursor="pointer"
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -871,33 +902,42 @@ export default function ProgressPage() {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <div 
-                className="cursor-pointer border-2 border-dashed border-transparent hover:border-green-300 rounded p-2"
-                onClick={() => handleSimpleChartClick('workouts')}
-                title="Click to edit workout data"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart 
-                    data={chartData}
-                    onClick={(data) => handleChartClick(data, 'workouts')}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={formatDate}
-                      fontSize={12}
-                    />
-                    <YAxis fontSize={12} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar 
-                      dataKey="workouts" 
-                      fill="#16a34a"
-                      radius={[4, 4, 0, 0]}
-                      cursor="pointer"
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {!chartsLoaded ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Activity className="w-8 h-8 text-green-600 animate-spin mx-auto mb-2" />
+                    <p className="text-sm text-gray-600">Loading chart...</p>
+                  </div>
+                </div>
+              ) : (
+                <div 
+                  className="cursor-pointer border-2 border-dashed border-transparent hover:border-green-300 rounded p-2"
+                  onClick={() => handleSimpleChartClick('workouts')}
+                  title="Click to edit workout data"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart 
+                      data={chartData}
+                      onClick={(data) => handleChartClick(data, 'workouts')}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="date" 
+                        tickFormatter={formatDate}
+                        fontSize={12}
+                      />
+                      <YAxis fontSize={12} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar 
+                        dataKey="workouts" 
+                        fill="#16a34a"
+                        radius={[4, 4, 0, 0]}
+                        cursor="pointer"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
