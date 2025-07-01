@@ -6,6 +6,9 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Activity, 
   ArrowLeft,
@@ -14,10 +17,12 @@ import {
   Target,
   Award,
   Footprints,
-  Flame
+  Flame,
+  Edit
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { User } from '@/lib/types';
+import { toast } from 'sonner';
 
 interface ChartData {
   date: string;
@@ -31,6 +36,19 @@ export default function ProgressPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<ChartData[]>([]);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editData, setEditData] = useState<{
+    type: 'steps' | 'workouts' | 'calories';
+    date: string;
+    value: number;
+    originalData?: any;
+  }>({
+    type: 'steps',
+    date: '',
+    value: 0
+  });
+  const [editValue, setEditValue] = useState('');
+  const [editDuration, setEditDuration] = useState('');
   const [stats, setStats] = useState({
     totalSteps: 0,
     totalCalories: 0,
@@ -47,23 +65,38 @@ export default function ProgressPage() {
   });
 
   useEffect(() => {
-    const currentUser = typeof window !== 'undefined' ? localStorage.getItem('currentUser') : null;
-    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    let isMounted = true;
     
-    if (!currentUser || !authToken) {
-      router.push('/');
-      return;
-    }
+    const initializeProgressPage = async () => {
+      const currentUser = typeof window !== 'undefined' ? localStorage.getItem('currentUser') : null;
+      const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+      
+      if (!currentUser || !authToken) {
+        router.push('/');
+        return;
+      }
 
-    try {
-      const userData = JSON.parse(currentUser);
-      setUser(userData);
-      loadProgressData(authToken);
-    } catch {
-      router.push('/');
-    } finally {
-      setLoading(false);
-    }
+      try {
+        const userData = JSON.parse(currentUser);
+        if (isMounted) {
+          setUser(userData);
+          await loadProgressData(authToken);
+        }
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        router.push('/');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeProgressPage();
+
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   // Helper function to normalize dates
@@ -79,6 +112,8 @@ export default function ProgressPage() {
 
   const loadProgressData = async (token: string) => {
     try {
+      console.log('Loading progress data...');
+      
       // Load from MongoDB using existing API endpoints
       const [stepsResponse, workoutsResponse] = await Promise.all([
         fetch('/api/steps?days=30', {
@@ -86,46 +121,68 @@ export default function ProgressPage() {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
+        }).catch(err => {
+          console.error('Steps API error:', err);
+          return null;
         }),
         fetch('/api/workouts?days=30', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
+        }).catch(err => {
+          console.error('Workouts API error:', err);
+          return null;
         })
       ]);
 
       let stepsData = [];
       let workoutsData = [];
 
-      if (stepsResponse.ok) {
-        const stepsResult = await stepsResponse.json();
-        if (stepsResult.success) {
-          stepsData = stepsResult.data;
+      if (stepsResponse && stepsResponse.ok) {
+        try {
+          const stepsResult = await stepsResponse.json();
+          if (stepsResult.success) {
+            stepsData = stepsResult.data;
+          }
+        } catch (err) {
+          console.error('Error parsing steps data:', err);
         }
       }
       
-      if (workoutsResponse.ok) {
-        const workoutsResult = await workoutsResponse.json();
-        if (workoutsResult.success) {
-          workoutsData = workoutsResult.data;
+      if (workoutsResponse && workoutsResponse.ok) {
+        try {
+          const workoutsResult = await workoutsResponse.json();
+          if (workoutsResult.success) {
+            workoutsData = workoutsResult.data;
+          }
+        } catch (err) {
+          console.error('Error parsing workouts data:', err);
         }
       }
 
       // Fallback to localStorage if no data in MongoDB (only if window is available)
       if (stepsData.length === 0 && typeof window !== 'undefined') {
-        const storedSteps = localStorage.getItem(`steps_${user?.id}`);
-        stepsData = storedSteps ? JSON.parse(storedSteps) : [];
+        try {
+          const storedSteps = localStorage.getItem(`steps_${user?.id}`);
+          stepsData = storedSteps ? JSON.parse(storedSteps) : [];
+        } catch (err) {
+          console.error('Error loading stored steps:', err);
+          stepsData = [];
+        }
       }
       if (workoutsData.length === 0 && typeof window !== 'undefined') {
-        const storedWorkouts = localStorage.getItem(`workouts_${user?.id}`);
-        workoutsData = storedWorkouts ? JSON.parse(storedWorkouts) : [];
+        try {
+          const storedWorkouts = localStorage.getItem(`workouts_${user?.id}`);
+          workoutsData = storedWorkouts ? JSON.parse(storedWorkouts) : [];
+        } catch (err) {
+          console.error('Error loading stored workouts:', err);
+          workoutsData = [];
+        }
       }
 
-      // Debug: Log the data to see what we're working with
-      console.log('Progress Page - Steps data:', stepsData);
-      console.log('Progress Page - Workouts data:', workoutsData);
-      console.log('Progress Page - User ID:', user?.id);
+      console.log('Progress Page - Steps data loaded:', stepsData.length, 'entries');
+      console.log('Progress Page - Workouts data loaded:', workoutsData.length, 'entries');
 
       // Generate last 14 days of data for charts
       const chartData: ChartData[] = [];
@@ -136,30 +193,20 @@ export default function ProgressPage() {
         date.setDate(date.getDate() - i);
         const dateStr = date.toISOString().split('T')[0];
         
-        console.log('Processing chart date:', dateStr);
-        
         // Handle both Date objects and date strings from MongoDB
         const daySteps = stepsData.find((s: any) => {
           const entryDate = normalizeDate(s.date);
-          console.log('Comparing steps entry:', entryDate, 'with chart date:', dateStr);
           return entryDate === dateStr;
         });
         
         const dayWorkouts = workoutsData.filter((w: any) => {
           const entryDate = normalizeDate(w.date);
-          console.log('Comparing workouts entry:', entryDate, 'with chart date:', dateStr);
           return entryDate === dateStr;
         });
         
         const dayStepsValue = daySteps?.steps || 0;
-        const dayCaloriesValue = (daySteps?.caloriesBurned || 0) + dayWorkouts.reduce((sum: number, w: any) => sum + w.caloriesBurned, 0);
+        const dayCaloriesValue = (daySteps?.caloriesBurned || 0) + dayWorkouts.reduce((sum: number, w: any) => sum + (w.caloriesBurned || 0), 0);
         const dayWorkoutsValue = dayWorkouts.length;
-        
-        console.log(`Chart data for ${dateStr}:`, {
-          steps: dayStepsValue,
-          calories: dayCaloriesValue,
-          workouts: dayWorkoutsValue
-        });
         
         chartData.push({
           date: dateStr,
@@ -169,20 +216,18 @@ export default function ProgressPage() {
         });
       }
 
-      console.log('Final chart data:', chartData);
-
       setChartData(chartData);
 
-      // Calculate comprehensive stats
-      const totalSteps = stepsData.reduce((sum: number, s: any) => sum + s.steps, 0);
-      const totalStepsCalories = stepsData.reduce((sum: number, s: any) => sum + s.caloriesBurned, 0);
-      const totalWorkoutCalories = workoutsData.reduce((sum: number, w: any) => sum + w.caloriesBurned, 0);
+      // Calculate comprehensive stats with safety checks
+      const totalSteps = stepsData.reduce((sum: number, s: any) => sum + (s.steps || 0), 0);
+      const totalStepsCalories = stepsData.reduce((sum: number, s: any) => sum + (s.caloriesBurned || 0), 0);
+      const totalWorkoutCalories = workoutsData.reduce((sum: number, w: any) => sum + (w.caloriesBurned || 0), 0);
       const totalCalories = totalStepsCalories + totalWorkoutCalories;
       const totalWorkouts = workoutsData.length;
       const averageSteps = stepsData.length > 0 ? Math.round(totalSteps / stepsData.length) : 0;
       const averageCalories = stepsData.length > 0 ? Math.round(totalCalories / Math.max(stepsData.length, workoutsData.length)) : 0;
       
-      // Find best days
+      // Find best days with safety checks
       const bestStepDay = stepsData.reduce((best: any, current: any) => {
         const currentSteps = current.steps || 0;
         const bestSteps = best?.steps || 0;
@@ -195,32 +240,31 @@ export default function ProgressPage() {
 
       // Calculate streak (consecutive days with any activity)
       let streak = 0;
-      const allActivityDates = [...new Set([
-        ...stepsData.map((s: any) => normalizeDate(s.date)),
-        ...workoutsData.map((w: any) => normalizeDate(w.date))
-      ])].sort().reverse();
+      try {
+        const allActivityDates = [...new Set([
+          ...stepsData.map((s: any) => normalizeDate(s.date)),
+          ...workoutsData.map((w: any) => normalizeDate(w.date))
+        ])].sort().reverse();
 
-      console.log('All activity dates for streak:', allActivityDates);
-
-      const todayStr = new Date().toISOString().split('T')[0];
-      let currentDate = new Date(todayStr);
-      
-      for (const dateStr of allActivityDates) {
-        const activityDate = new Date(dateStr);
-        const currentDateStr = currentDate.toISOString().split('T')[0];
-        console.log('Streak check:', dateStr, 'vs', currentDateStr);
+        const todayStr = new Date().toISOString().split('T')[0];
+        let currentDate = new Date(todayStr);
         
-        if (dateStr === currentDateStr) {
-          streak++;
-          currentDate.setDate(currentDate.getDate() - 1);
-        } else if (dateStr < todayStr) {
-          break;
+        for (const dateStr of allActivityDates) {
+          const currentDateStr = currentDate.toISOString().split('T')[0];
+          
+          if (dateStr === currentDateStr) {
+            streak++;
+            currentDate.setDate(currentDate.getDate() - 1);
+          } else if (dateStr < todayStr) {
+            break;
+          }
         }
+      } catch (err) {
+        console.error('Error calculating streak:', err);
+        streak = 0;
       }
 
-      console.log('Final streak:', streak);
-
-      // Calculate weekly comparisons
+      // Calculate weekly comparisons with safety checks
       const thisWeekStart = new Date();
       thisWeekStart.setDate(thisWeekStart.getDate() - thisWeekStart.getDay());
       const lastWeekStart = new Date(thisWeekStart);
@@ -228,58 +272,69 @@ export default function ProgressPage() {
       const lastWeekEnd = new Date(thisWeekStart);
       lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
 
-      console.log('Week ranges:', {
-        thisWeekStart: thisWeekStart.toISOString().split('T')[0],
-        lastWeekStart: lastWeekStart.toISOString().split('T')[0],
-        lastWeekEnd: lastWeekEnd.toISOString().split('T')[0]
-      });
-
       const thisWeekSteps = stepsData
         .filter((s: any) => {
-          const entryDate = new Date(normalizeDate(s.date));
-          return entryDate >= thisWeekStart;
+          try {
+            const entryDate = new Date(normalizeDate(s.date));
+            return entryDate >= thisWeekStart;
+          } catch {
+            return false;
+          }
         })
-        .reduce((sum: number, s: any) => sum + s.steps, 0);
+        .reduce((sum: number, s: any) => sum + (s.steps || 0), 0);
 
       const lastWeekSteps = stepsData
         .filter((s: any) => {
-          const entryDate = new Date(normalizeDate(s.date));
-          return entryDate >= lastWeekStart && entryDate <= lastWeekEnd;
+          try {
+            const entryDate = new Date(normalizeDate(s.date));
+            return entryDate >= lastWeekStart && entryDate <= lastWeekEnd;
+          } catch {
+            return false;
+          }
         })
-        .reduce((sum: number, s: any) => sum + s.steps, 0);
+        .reduce((sum: number, s: any) => sum + (s.steps || 0), 0);
 
       const thisWeekCalories = stepsData
         .filter((s: any) => {
-          const entryDate = new Date(normalizeDate(s.date));
-          return entryDate >= thisWeekStart;
+          try {
+            const entryDate = new Date(normalizeDate(s.date));
+            return entryDate >= thisWeekStart;
+          } catch {
+            return false;
+          }
         })
-        .reduce((sum: number, s: any) => sum + s.caloriesBurned, 0) +
+        .reduce((sum: number, s: any) => sum + (s.caloriesBurned || 0), 0) +
         workoutsData
         .filter((w: any) => {
-          const entryDate = new Date(normalizeDate(w.date));
-          return entryDate >= thisWeekStart;
+          try {
+            const entryDate = new Date(normalizeDate(w.date));
+            return entryDate >= thisWeekStart;
+          } catch {
+            return false;
+          }
         })
-        .reduce((sum: number, w: any) => sum + w.caloriesBurned, 0);
+        .reduce((sum: number, w: any) => sum + (w.caloriesBurned || 0), 0);
 
       const lastWeekCalories = stepsData
         .filter((s: any) => {
-          const entryDate = new Date(normalizeDate(s.date));
-          return entryDate >= lastWeekStart && entryDate <= lastWeekEnd;
+          try {
+            const entryDate = new Date(normalizeDate(s.date));
+            return entryDate >= lastWeekStart && entryDate <= lastWeekEnd;
+          } catch {
+            return false;
+          }
         })
-        .reduce((sum: number, s: any) => sum + s.caloriesBurned, 0) +
+        .reduce((sum: number, s: any) => sum + (s.caloriesBurned || 0), 0) +
         workoutsData
         .filter((w: any) => {
-          const entryDate = new Date(normalizeDate(w.date));
-          return entryDate >= lastWeekStart && entryDate <= lastWeekEnd;
+          try {
+            const entryDate = new Date(normalizeDate(w.date));
+            return entryDate >= lastWeekStart && entryDate <= lastWeekEnd;
+          } catch {
+            return false;
+          }
         })
-        .reduce((sum: number, w: any) => sum + w.caloriesBurned, 0);
-
-      console.log('Weekly stats:', {
-        thisWeekSteps,
-        lastWeekSteps,
-        thisWeekCalories,
-        lastWeekCalories
-      });
+        .reduce((sum: number, w: any) => sum + (w.caloriesBurned || 0), 0);
 
       setStats({
         totalSteps,
@@ -288,7 +343,7 @@ export default function ProgressPage() {
         averageSteps,
         averageCalories,
         bestStepDay: {
-          date: normalizeDate(bestStepDay.date),
+          date: normalizeDate(bestStepDay.date || ''),
           steps: bestStepDay.steps || 0
         },
         bestCalorieDay,
@@ -299,8 +354,26 @@ export default function ProgressPage() {
         lastWeekCalories
       });
 
+      console.log('Progress data loading completed successfully');
+
     } catch (error) {
-      console.error('Error loading progress data:', error);
+      console.error('Critical error loading progress data:', error);
+      // Set default empty state instead of crashing
+      setChartData([]);
+      setStats({
+        totalSteps: 0,
+        totalCalories: 0,
+        totalWorkouts: 0,
+        averageSteps: 0,
+        averageCalories: 0,
+        bestStepDay: { date: '', steps: 0 },
+        bestCalorieDay: { date: '', calories: 0 },
+        streak: 0,
+        thisWeekSteps: 0,
+        lastWeekSteps: 0,
+        thisWeekCalories: 0,
+        lastWeekCalories: 0
+      });
     }
   };
 
@@ -344,14 +417,205 @@ export default function ProgressPage() {
               {entry.dataKey === 'workouts' && `${entry.value} workouts`}
             </p>
           ))}
+          <p className="text-xs text-gray-500 mt-1">Click to edit</p>
         </div>
       );
     }
     return null;
   };
 
+  const handleChartClick = (data: any, type: 'steps' | 'workouts' | 'calories') => {
+    console.log('Chart clicked:', type, data);
+    
+    if (data && data.activePayload && data.activePayload[0]) {
+      const clickData = data.activePayload[0].payload;
+      console.log('Click data found:', clickData);
+      
+      setEditData({
+        type,
+        date: clickData.date,
+        value: clickData[type],
+        originalData: clickData
+      });
+      
+      if (type === 'steps') {
+        setEditValue(clickData[type].toString());
+        setEditDuration('60'); // Default duration
+      } else if (type === 'workouts') {
+        setEditValue(clickData[type].toString());
+      } else {
+        setEditValue(clickData[type].toString());
+      }
+      
+      console.log('Opening edit modal for:', type, clickData.date);
+      setEditModalOpen(true);
+    } else {
+      console.log('No valid data found in click event');
+    }
+  };
+
+  // Alternative simpler click handler for testing
+  const handleSimpleChartClick = (type: 'steps' | 'workouts' | 'calories') => {
+    console.log('Simple chart click:', type);
+    
+    // Use today's date as default for testing
+    const today = new Date().toISOString().split('T')[0];
+    const todayData = chartData.find(d => d.date === today) || chartData[chartData.length - 1];
+    
+    if (todayData) {
+      setEditData({
+        type,
+        date: todayData.date,
+        value: todayData[type],
+        originalData: todayData
+      });
+      
+      setEditValue(todayData[type].toString());
+      if (type === 'steps') {
+        setEditDuration('60');
+      }
+      
+      console.log('Opening modal with data:', todayData);
+      setEditModalOpen(true);
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!user || !editValue) return;
+    
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+    if (!authToken) {
+      alert('Authentication required');
+      return;
+    }
+
+    try {
+      let response;
+      
+      if (editData.type === 'steps') {
+        response = await fetch('/api/steps', {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            date: editData.date,
+            steps: parseInt(editValue),
+            duration: parseInt(editDuration)
+          }),
+        });
+      } else if (editData.type === 'workouts') {
+        // For workouts, we'll need to handle this differently since it's more complex
+        // This is a simplified version - you might want to expand this
+        response = await fetch('/api/workouts', {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            date: editData.date,
+            name: 'Updated Workout',
+            type: 'cardio',
+            duration: parseInt(editValue) * 30, // Assume 30 min per workout
+            intensity: 'medium'
+          }),
+        });
+      }
+
+      if (response && response.ok) {
+        alert('Data updated successfully!');
+        setEditModalOpen(false);
+        loadProgressData(authToken);
+      } else {
+        alert('Failed to update data');
+      }
+    } catch (error) {
+      console.error('Error updating data:', error);
+      alert('Failed to update data');
+    }
+  };
+
+  const closeEditModal = () => {
+    setEditModalOpen(false);
+    setEditValue('');
+    setEditDuration('');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Edit Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center">
+              <Edit className="w-5 h-5 mr-2 text-blue-600" />
+              Edit {editData.type} for {formatDate(editData.date)}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {editData.type === 'steps' && (
+              <>
+                <div className="space-y-2">
+                  <Label>Steps</Label>
+                  <Input
+                    type="number"
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    placeholder="Enter steps"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Duration (minutes)</Label>
+                  <Input
+                    type="number"
+                    value={editDuration}
+                    onChange={(e) => setEditDuration(e.target.value)}
+                    placeholder="Enter duration"
+                  />
+                </div>
+              </>
+            )}
+            
+            {editData.type === 'workouts' && (
+              <div className="space-y-2">
+                <Label>Number of Workouts</Label>
+                <Input
+                  type="number"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  placeholder="Enter workout count"
+                  min="0"
+                  max="10"
+                />
+              </div>
+            )}
+            
+            {editData.type === 'calories' && (
+              <div className="space-y-2">
+                <Label>Calories Burned</Label>
+                <Input
+                  type="number"
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  placeholder="Enter calories"
+                />
+              </div>
+            )}
+            
+            <div className="flex space-x-2">
+              <Button onClick={handleEditSave} className="flex-1">
+                Update
+              </Button>
+              <Button variant="outline" onClick={closeEditModal} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -514,29 +778,47 @@ export default function ProgressPage() {
           <Card>
             <CardHeader>
               <CardTitle>Steps Trend (Last 14 Days)</CardTitle>
-              <CardDescription>Your daily step count over time</CardDescription>
+              <CardDescription>Your daily step count over time (Click chart to edit)</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={formatDate}
-                      fontSize={12}
-                    />
-                    <YAxis fontSize={12} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="steps" 
-                      stroke="#2563eb" 
-                      strokeWidth={2}
-                      dot={{ fill: '#2563eb', strokeWidth: 2, r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div 
+                  className="cursor-pointer border-2 border-dashed border-transparent hover:border-blue-300 rounded p-2"
+                  onClick={() => handleSimpleChartClick('steps')}
+                  title="Click to edit steps data"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart 
+                      data={chartData}
+                      onClick={(data) => handleChartClick(data, 'steps')}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="date" 
+                        tickFormatter={formatDate}
+                        fontSize={12}
+                      />
+                      <YAxis fontSize={12} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Line 
+                        type="monotone" 
+                        dataKey="steps" 
+                        stroke="#2563eb" 
+                        strokeWidth={2}
+                        dot={{ 
+                          fill: '#2563eb', 
+                          strokeWidth: 2, 
+                          r: 4, 
+                          cursor: 'pointer'
+                        }}
+                        activeDot={{ 
+                          r: 6, 
+                          cursor: 'pointer'
+                        }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -545,27 +827,37 @@ export default function ProgressPage() {
           <Card>
             <CardHeader>
               <CardTitle>Calories Burned (Last 14 Days)</CardTitle>
-              <CardDescription>Daily calories from steps and workouts</CardDescription>
+              <CardDescription>Daily calories from steps and workouts (Click chart to edit)</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={formatDate}
-                      fontSize={12}
-                    />
-                    <YAxis fontSize={12} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar 
-                      dataKey="calories" 
-                      fill="#ea580c"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                <div 
+                  className="cursor-pointer border-2 border-dashed border-transparent hover:border-orange-300 rounded p-2"
+                  onClick={() => handleSimpleChartClick('calories')}
+                  title="Click to edit calories data"
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart 
+                      data={chartData}
+                      onClick={(data) => handleChartClick(data, 'calories')}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="date" 
+                        tickFormatter={formatDate}
+                        fontSize={12}
+                      />
+                      <YAxis fontSize={12} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Bar 
+                        dataKey="calories" 
+                        fill="#ea580c"
+                        radius={[4, 4, 0, 0]}
+                        cursor="pointer"
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -575,27 +867,37 @@ export default function ProgressPage() {
         <Card className="mb-8">
           <CardHeader>
             <CardTitle>Workout Activity (Last 14 Days)</CardTitle>
-            <CardDescription>Number of workouts per day</CardDescription>
+            <CardDescription>Number of workouts per day (Click chart to edit)</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={formatDate}
-                    fontSize={12}
-                  />
-                  <YAxis fontSize={12} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar 
-                    dataKey="workouts" 
-                    fill="#16a34a"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              <div 
+                className="cursor-pointer border-2 border-dashed border-transparent hover:border-green-300 rounded p-2"
+                onClick={() => handleSimpleChartClick('workouts')}
+                title="Click to edit workout data"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={chartData}
+                    onClick={(data) => handleChartClick(data, 'workouts')}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="date" 
+                      tickFormatter={formatDate}
+                      fontSize={12}
+                    />
+                    <YAxis fontSize={12} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar 
+                      dataKey="workouts" 
+                      fill="#16a34a"
+                      radius={[4, 4, 0, 0]}
+                      cursor="pointer"
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </CardContent>
         </Card>
